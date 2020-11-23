@@ -1,11 +1,18 @@
 package org.suyueqiuliang.pilipili;
 
+import android.annotation.SuppressLint;
+import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.IBinder;
 import android.util.Log;
 import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.View;
+import android.view.WindowManager;
+import android.view.inputmethod.InputMethodManager;
+import android.widget.EditText;
 import android.widget.ImageView;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -29,18 +36,30 @@ public class VideoActivity extends AppCompatActivity {
     static ToolClass toolClass;
     static SimpleExoPlayer player;
     static ImageView back;
+    static EditText flame_editText;
+    @SuppressLint("ClickableViewAccessibility")
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.video_layout);
         hideSystemNavigationBar();
         toolClass = new ToolClass();
         back = findViewById(R.id.video_back);
+        flame_editText = findViewById(R.id.flame_editText);
+        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         Intent intent = getIntent();
         av = intent.getIntExtra("av",0);
         back.setOnClickListener(v -> {
             player.stop();
             player.release();
             finish();
+        });
+        flame_editText.setOnFocusChangeListener(new View.OnFocusChangeListener() {
+            @Override
+            public void onFocusChange(View v, boolean hasFocus) {
+                if (hasFocus){
+                    player.pause();
+                }
+            }
         });
         new Thread(() -> {
             VideoInformation videoInformation = toolClass.getVideoInformation(av);
@@ -100,5 +119,37 @@ public class VideoActivity extends AppCompatActivity {
     public void onPause() {
         super.onPause();
         player.pause();
+    }
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent ev) {
+        if (ev.getAction() == MotionEvent.ACTION_DOWN) {
+            View v = getCurrentFocus();
+            if (isShouldHideKeyboard(v, ev)) {
+                hideKeyboard(v.getWindowToken());
+            }
+        }
+        return super.dispatchTouchEvent(ev);
+    }
+    private void hideKeyboard(IBinder token) {
+        if (token != null) {
+            InputMethodManager im = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+            im.hideSoftInputFromWindow(token, InputMethodManager.HIDE_NOT_ALWAYS);
+            flame_editText.clearFocus();
+        }
+    }
+    private boolean isShouldHideKeyboard(View v, MotionEvent event) {
+        if ((v instanceof EditText)) {
+            int[] l = {0, 0};
+            v.getLocationInWindow(l);
+            int left = l[0],
+                    top = l[1],
+                    bottom = top + v.getHeight(),
+                    right = left + v.getWidth();
+            // 点击EditText的事件，忽略它。
+            return !(event.getX() > left) || !(event.getX() < right)
+                    || !(event.getY() > top) || !(event.getY() < bottom);
+        }
+        // 如果焦点不是EditText则忽略，这个发生在视图刚绘制完，第一个焦点不在EditText上，和用户用轨迹球选择其他的焦点
+        return false;
     }
 }
